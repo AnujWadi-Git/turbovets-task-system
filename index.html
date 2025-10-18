@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TurboVets Task Manager - RBAC with Organizations</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        h2 { color: #333; margin-bottom: 15px; }
+        .subtitle { color: #666; margin-bottom: 20px; }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        textarea { min-height: 100px; resize: vertical; }
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        button:hover { background: #5568d3; }
+        .hidden { display: none; }
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .role-owner { background: #9c27b0; color: white; }
+        .role-admin { background: #dc3545; color: white; }
+        .role-user { background: #28a745; color: white; }
+        .role-viewer { background: #6c757d; color: white; }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-todo { background: #e9ecef; color: #495057; }
+        .status-in_progress { background: #cfe2ff; color: #084298; }
+        .status-done { background: #d1e7dd; color: #0f5132; }
+        .task-grid {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .task-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .task-item h3 { margin-bottom: 8px; color: #333; }
+        .task-item p { color: #666; margin-bottom: 10px; font-size: 14px; }
+        .task-meta {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .org-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .demo-accounts {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .demo-accounts h3 { margin-bottom: 10px; }
+        .account-btn {
+            margin: 5px;
+            padding: 8px 15px;
+            font-size: 13px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            color: #666;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        .success { color: #28a745; margin: 10px 0; }
+        .error { color: #dc3545; margin: 10px 0; }
+        .info-row {
+            margin: 8px 0;
+            color: #555;
+        }
+        .info-row strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section -->
+        <div class="card" id="loginSection">
+            <h1>🐾 TurboVets Task Manager</h1>
+            <p class="subtitle">Role-Based Access Control with Organizational Hierarchy</p>
+
+            <div class="demo-accounts">
+                <h3>🏢 Quick Login - Test Organizational Hierarchy:</h3>
+                <button class="account-btn" onclick="quickLogin('owner@turbovets.com', 'owner123')">
+                    👑 Owner (HQ - sees all orgs)
+                </button>
+                <button class="account-btn" onclick="quickLogin('admin@turbovets.com', 'admin123')">
+                    👔 Admin (Engineering Dept)
+                </button>
+                <button class="account-btn" onclick="quickLogin('marketing-admin@turbovets.com', 'admin123')">
+                    👔 Admin (Marketing Dept)
+                </button>
+                <button class="account-btn" onclick="quickLogin('user@turbovets.com', 'user123')">
+                    👤 User (Engineering)
+                </button>
+                <button class="account-btn" onclick="quickLogin('viewer@turbovets.com', 'viewer123')">
+                    👁️ Viewer (Marketing)
+                </button>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <input type="email" id="email" placeholder="Email" value="owner@turbovets.com">
+                <input type="password" id="password" placeholder="Password" value="owner123">
+                <button onclick="login()">Login</button>
+            </div>
+            <div id="loginMessage"></div>
+        </div>
+
+        <!-- App Section -->
+        <div id="appSection" class="hidden">
+            <div class="card">
+                <h2>Welcome, <span id="userName"></span> <span id="userRole" class="role-badge"></span></h2>
+                <div class="info-row"><strong>Email:</strong> <span id="userEmail"></span></div>
+                <div class="info-row"><strong>Organization:</strong> <span id="userOrg"></span></div>
+                <div class="info-row"><strong>Access Level:</strong> <span id="accessLevel"></span></div>
+                <button onclick="logout()" style="margin-top: 15px;">Logout</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('tasks')">📋 My Tasks</button>
+                    <button class="tab" id="createTabBtn" onclick="showTab('create')">➕ Create Task</button>
+                    <button class="tab" onclick="showTab('orgs')">🏢 Organizations</button>
+                </div>
+
+                <!-- Tasks View -->
+                <div id="tasksView">
+                    <h2>Your Tasks <span id="taskCount"></span></h2>
+                    <button onclick="loadTasks()">🔄 Refresh</button>
+                    <div id="tasksList" class="task-grid"></div>
+                </div>
+
+                <!-- Create Task View -->
+                <div id="createView" class="hidden">
+                    <h2>Create New Task</h2>
+                    <input type="text" id="taskTitle" placeholder="Task Title">
+                    <textarea id="taskDescription" placeholder="Task Description"></textarea>
+                    <button onclick="createTask()">Create Task</button>
+                    <div id="createMessage"></div>
+                </div>
+
+                <!-- Organizations View -->
+                <div id="orgsView" class="hidden">
+                    <h2>Organization Structure</h2>
+                    <p style="color: #666; margin-bottom: 20px;">View the organizational hierarchy and your access scope</p>
+                    <div id="orgsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let currentUser = null;
+        let authToken = null;
+
+        const ORG_NAMES = {
+            '1': 'TurboVets HQ (Top Level)',
+            '2': 'Engineering Department',
+            '3': 'Marketing Department'
+        };
+
+        function quickLogin(email, password) {
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = password;
+            login();
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (!response.ok) {
+                    showMessage('loginMessage', 'Login failed!', 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                authToken = data.accessToken;
+                currentUser = data.user;
+
+                showMessage('loginMessage', 'Login successful!', 'success');
+                setTimeout(showAppSection, 800);
+            } catch (error) {
+                showMessage('loginMessage', 'Connection error: ' + error.message, 'error');
+            }
+        }
+
+        function showAppSection() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('appSection').classList.remove('hidden');
+            
+            document.getElementById('userName').textContent = 
+                `${currentUser.firstName} ${currentUser.lastName}`;
+            
+            document.getElementById('userEmail').textContent = currentUser.email;
+            
+            const roleBadge = document.getElementById('userRole');
+            roleBadge.textContent = currentUser.role.toUpperCase();
+            roleBadge.className = `role-badge role-${currentUser.role}`;
+
+            // Show organization
+            document.getElementById('userOrg').textContent = 
+                ORG_NAMES[currentUser.organizationId] || 'Unknown';
+
+            // Show access level
+            const accessLevels = {
+                'owner': 'All organizations and departments',
+                'admin': 'Department and sub-departments',
+                'user': 'Own department only',
+                'viewer': 'Own department (read-only)'
+            };
+            document.getElementById('accessLevel').textContent = 
+                accessLevels[currentUser.role] || 'Limited';
+
+            // Hide create tab for viewers
+            if (currentUser.role === 'viewer') {
+                document.getElementById('createTabBtn').style.display = 'none';
+            }
+
+            loadTasks();
+            loadOrganizations();
+        }
+
+        async function loadTasks() {
+            try {
+                const response = await fetch(`${API_URL}/tasks`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to load tasks');
+
+                const tasks = await response.json();
+                displayTasks(tasks);
+            } catch (error) {
+                document.getElementById('tasksList').innerHTML = 
+                    `<p class="error">Error loading tasks: ${error.message}</p>`;
+            }
+        }
+
+        function displayTasks(tasks) {
+            const tasksList = document.getElementById('tasksList');
+            document.getElementById('taskCount').textContent = `(${tasks.length})`;
+
+            if (tasks.length === 0) {
+                tasksList.innerHTML = '<p>No tasks found. Create your first task!</p>';
+                return;
+            }
+
+            tasksList.innerHTML = tasks.map(task => `
+                <div class="task-item">
+                    <h3>${task.title}</h3>
+                    <p>${task.description || 'No description'}</p>
+                    <div class="task-meta">
+                        <span class="status-badge status-${task.status}">
+                            ${task.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <span class="org-badge">
+                            ${ORG_NAMES[task.organizationId] || 'Unknown Org'}
+                        </span>
+                    </div>
+                    ${canUpdateTask(task) ? `
+                        <div style="margin-top: 10px;">
+                            <button onclick="updateTaskStatus('${task.id}', 'in_progress')" style="font-size: 12px; padding: 6px 12px;">
+                                ▶️ In Progress
+                            </button>
+                            <button onclick="updateTaskStatus('${task.id}', 'done')" style="font-size: 12px; padding: 6px 12px;">
+                                ✅ Done
+                            </button>
+                        </div>
+                    ` : ''}
+                    ${canDeleteTask(task) ? `
+                        <button onclick="deleteTask('${task.id}')" style="background: #dc3545; font-size: 12px; padding: 6px 12px; margin-top: 10px;">
+                            🗑️ Delete
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function canUpdateTask(task) {
+            if (currentUser.role === 'viewer') return false;
+            if (currentUser.role === 'owner' || currentUser.role === 'admin') return true;
+            return task.creatorId === currentUser.id || task.assigneeId === currentUser.id;
+        }
+
+        function canDeleteTask(task) {
+            if (currentUser.role === 'owner' || currentUser.role === 'admin') return true;
+            return task.creatorId === currentUser.id;
+        }
+
+        async function createTask() {
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDescription').value;
+
+            if (!title) {
+                showMessage('createMessage', 'Please enter a title', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/tasks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ title, description })
+                });
+
+                if (!response.ok) throw new Error('Failed to create task');
+
+                showMessage('createMessage', 'Task created successfully!', 'success');
+                document.getElementById('taskTitle').value = '';
+                document.getElementById('taskDescription').value = '';
+                
+                setTimeout(() => {
+                    showTab('tasks');
+                }, 1000);
+            } catch (error) {
+                showMessage('createMessage', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function updateTaskStatus(taskId, status) {
+            try {
+                const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ status })
+                });
+
+                if (!response.ok) throw new Error('Failed to update task');
+                loadTasks();
+            } catch (error) {
+                alert('Error updating task: ' + error.message);
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm('Are you sure you want to delete this task?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to delete task');
+                loadTasks();
+            } catch (error) {
+                alert('Error deleting task: ' + error.message);
+            }
+        }
+
+        async function loadOrganizations() {
+            try {
+                const response = await fetch(`${API_URL}/organizations/my-access`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to load organizations');
+
+                const data = await response.json();
+                displayOrganizations(data);
+            } catch (error) {
+                document.getElementById('orgsList').innerHTML = 
+                    `<p class="error">Error loading organizations: ${error.message}</p>`;
+            }
+        }
+
+        function displayOrganizations(data) {
+            const orgsList = document.getElementById('orgsList');
+            
+            const accessInfo = `
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 10px;">Your Access Scope</h3>
+                    <p style="color: #666; margin-bottom: 10px;">
+                        As a <strong>${currentUser.role.toUpperCase()}</strong>, you have access to 
+                        <strong>${data.organizationIds.length}</strong> organization(s):
+                    </p>
+                    <ul style="margin-left: 20px; color: #555;">
+                        ${data.organizations.map(org => 
+                            `<li style="margin: 5px 0;">${org.name}${org.parentId ? ' (Sub-department)' : ' (Top-level)'}</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    <h3 style="margin-bottom: 10px;">Complete Organization Structure</h3>
+                    <div style="margin-top: 15px; padding-left: 20px;">
+                        <div style="margin: 10px 0; font-weight: 600;">
+                            🏢 TurboVets HQ (Top Level)
+                        </div>
+                        <div style="margin-left: 30px;">
+                            <div style="margin: 8px 0;">
+                                └── 🔧 Engineering Department
+                            </div>
+                            <div style="margin: 8px 0;">
+                                └── 📢 Marketing Department
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <h4 style="margin-bottom: 8px;">💡 Role Hierarchy Explained:</h4>
+                    <ul style="margin-left: 20px; color: #856404; line-height: 1.8;">
+                        <li><strong>Owner:</strong> Sees all tasks across entire organization tree</li>
+                        <li><strong>Admin:</strong> Manages their department and can see all tasks within it</li>
+                        <li><strong>User:</strong> Can create and manage own tasks within their department</li>
+                        <li><strong>Viewer:</strong> Read-only access to tasks assigned to them</li>
+                    </ul>
+                </div>
+            `;
+
+            orgsList.innerHTML = accessInfo;
+        }
+
+        function showTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Show/hide views
+            document.getElementById('tasksView').classList.add('hidden');
+            document.getElementById('createView').classList.add('hidden');
+            document.getElementById('orgsView').classList.add('hidden');
+
+            if (tab === 'tasks') {
+                document.getElementById('tasksView').classList.remove('hidden');
+                loadTasks();
+            } else if (tab === 'create') {
+                document.getElementById('createView').classList.remove('hidden');
+            } else if (tab === 'orgs') {
+                document.getElementById('orgsView').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            authToken = null;
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('appSection').classList.add('hidden');
+        }
+
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => element.innerHTML = '', 3000);
+        }
+    </script>
+</body>
+</html>
